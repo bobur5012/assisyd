@@ -1,0 +1,78 @@
+name: Build APK
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.11.1"
+
+      - name: Cache voice models
+        uses: actions/cache@v4
+        with:
+          path: ~/vosk
+          key: vosk-small-ru-uz-0.22
+
+      - name: Download offline voice models (Russian + Uzbek)
+        run: |
+          set -e
+          mkdir -p ~/vosk app/src/main/assets
+          fetch() {
+            lang=$1; name=$2
+            if [ ! -d ~/vosk/$name ]; then
+              curl -fsSL --retry 3 -o /tmp/$name.zip "https://alphacephei.com/vosk/models/$name.zip"
+              unzip -q /tmp/$name.zip -d ~/vosk
+            fi
+            rm -rf app/src/main/assets/model-$lang
+            cp -r ~/vosk/$name app/src/main/assets/model-$lang
+            echo "$name" > app/src/main/assets/model-$lang/uuid
+            du -sh app/src/main/assets/model-$lang
+          }
+          fetch ru vosk-model-small-ru-0.22
+          fetch uz vosk-model-small-uz-0.22 || echo "::warning::Uzbek model not available"
+
+      - name: Build
+        run: gradle :app:assembleDebug --no-daemon --stacktrace
+
+      - name: Collect APK
+        run: |
+          cp app/build/outputs/apk/debug/app-debug.apk yoldosh.apk
+          ls -la yoldosh.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yoldosh-${{ github.run_number }}
+          path: yoldosh.apk
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: build-${{ github.run_number }}
+          name: "Yo'ldosh 0.1.${{ github.run_number }}"
+          body: |
+            Сборка ${{ github.run_number }} из коммита ${{ github.sha }}.
+            Скачать: yoldosh.apk ниже. Постоянная ссылка на последнюю версию:
+            https://github.com/${{ github.repository }}/releases/latest/download/yoldosh.apk
+          files: yoldosh.apk
+          make_latest: true

@@ -1,0 +1,210 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>Yo'ldosh</title>
+<link rel="stylesheet" href="app.css">
+<script src="model-viewer.js"></script>
+</head>
+<body>
+<div id="stage">
+
+  <!-- ============ HOME ============ -->
+  <section id="home" class="screen">
+    <header class="topbar">
+      <div class="clock"><span id="time">--:--</span><span id="date" class="muted"></span></div>
+      <div class="topright">
+        <span id="netHint" class="muted"></span>
+        <button class="icon-btn" id="openSettings" aria-label="Настройки">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M4.9 4.9l2.1 2.1M17 17l2.1 2.1M4.9 19.1L7 17M17 7l2.1-2.1"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <main class="grid">
+      <!-- car -->
+      <article class="card car">
+        <div class="card-head">
+          <div>
+            <div class="h2">BYD Song Plus</div>
+            <div class="muted" id="carSub">Двери закрыты</div>
+          </div>
+          <span class="muted small">3D · вращайте пальцем</span>
+        </div>
+        <div class="car-view">
+          <model-viewer id="car3d" src="car.glb" alt="3D-модель автомобиля" camera-controls
+            auto-rotate auto-rotate-delay="4000" rotation-per-second="10deg"
+            camera-orbit="35deg 78deg 105%" interaction-prompt="none"
+            shadow-intensity="1" exposure="1.05" environment-image="neutral"></model-viewer>
+          <span class="tag" id="trunkTag">Багажник закрыт</span>
+          <span class="credit">3D: Ddiaz Design · CC BY-NC-SA 4.0</span>
+        </div>
+        <div class="car-controls" id="carControls"></div>
+      </article>
+
+      <!-- navigation -->
+      <article class="card nav">
+        <div class="map">
+          <svg viewBox="0 0 560 560" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+            <path d="M-20 120 L600 80" stroke="#1E2A44" stroke-width="18"/>
+            <path d="M-20 330 L600 380" stroke="#1E2A44" stroke-width="24"/>
+            <path d="M120 -20 L180 600" stroke="#1E2A44" stroke-width="16"/>
+            <path d="M420 -20 L380 600" stroke="#1E2A44" stroke-width="20"/>
+            <path d="M-20 470 L600 500" stroke="#1E2A44" stroke-width="10"/>
+            <circle cx="262" cy="300" r="16" fill="#EAF0FA" stroke="#3EE6C1" stroke-width="8"/>
+          </svg>
+          <div class="map-label">Яндекс Навигатор</div>
+        </div>
+        <div class="nav-body">
+          <div class="h2">Куда едем?</div>
+          <div class="nav-grid">
+            <button class="chip-btn" data-nav="Дом">Домой</button>
+            <button class="chip-btn" data-nav="Работа">На работу</button>
+            <button class="chip-btn" data-nav="Зарядка для электромобилей">Зарядка</button>
+            <button class="chip-btn" data-nav="АЗС">Заправка</button>
+          </div>
+          <button class="wide-btn" id="openNavi">Открыть навигатор</button>
+        </div>
+      </article>
+
+      <!-- player -->
+      <article class="card player">
+        <div class="card-head">
+          <span class="muted">Сейчас играет</span>
+          <span class="muted small" id="mediaApp">Яндекс Музыка</span>
+        </div>
+        <div class="cover" id="cover">
+          <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>
+        </div>
+        <div>
+          <div class="h2 ellipsis" id="trackTitle">Музыка не играет</div>
+          <div class="muted ellipsis" id="trackArtist">Нажмите ▶, чтобы открыть Яндекс Музыку</div>
+        </div>
+        <div>
+          <div class="progress"><div id="progressBar"></div></div>
+          <div class="times muted small"><span id="tPos">0:00</span><span id="tDur">0:00</span></div>
+        </div>
+        <div class="transport">
+          <button class="round" data-media="prev" aria-label="Предыдущий трек"><svg viewBox="0 0 24 24" class="fill" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg></button>
+          <button class="round big" id="playBtn" data-media="toggle" aria-label="Играть"><svg viewBox="0 0 24 24" class="fill" aria-hidden="true"><path id="playIcon" d="M7 4v16l13-8z"/></svg></button>
+          <button class="round" data-media="next" aria-label="Следующий трек"><svg viewBox="0 0 24 24" class="fill" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg></button>
+        </div>
+        <div class="notice" id="mediaNotice" hidden>Чтобы видеть трек и обложку, разрешите доступ к уведомлениям. <button class="link-btn" data-perm="notif">Разрешить</button></div>
+      </article>
+    </main>
+
+    <footer class="dock">
+      <div class="dock-side">
+        <button class="dock-btn" data-vol="-1" aria-label="Тише"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 12h4"/></svg></button>
+        <button class="dock-btn" data-vol="1" aria-label="Громче"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9v6h4l5 4V5L8 9z"/><path d="M17 12h4M19 10v4"/></svg></button>
+        <span class="muted" id="volLabel"></span>
+      </div>
+      <button class="mic" id="micBtn" aria-label="Голосовой ассистент">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg>
+      </button>
+      <div class="dock-side right">
+        <button class="dock-btn" id="openMusic" aria-label="Яндекс Музыка"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg></button>
+        <button class="dock-btn" id="openNavi2" aria-label="Навигатор"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 11l18-8-8 18-2-8z"/></svg></button>
+      </div>
+    </footer>
+
+    <!-- voice overlay -->
+    <div class="overlay" id="voice" hidden>
+      <div class="voice-panel">
+        <div class="avatar-wrap">
+          <div class="ring" id="ring"></div>
+          <svg class="avatar" id="avatar" viewBox="0 0 300 300" role="img" aria-label="Аватар ассистента">
+            <defs>
+              <radialGradient id="abg" cx="50%" cy="40%" r="60%"><stop offset="0%" stop-color="#2A3A5E"/><stop offset="100%" stop-color="#16213A"/></radialGradient>
+              <radialGradient id="askin" cx="45%" cy="38%" r="65%"><stop offset="0%" stop-color="#F7D7BE"/><stop offset="100%" stop-color="#D9A27F"/></radialGradient>
+              <linearGradient id="ahair" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="#3B2A22"/><stop offset="100%" stop-color="#1E1410"/></linearGradient>
+            </defs>
+            <circle cx="150" cy="150" r="135" fill="url(#abg)"/>
+            <path d="M58 190 Q50 70 150 58 Q250 70 242 190 Q236 230 214 250 L86 250 Q64 230 58 190 Z" fill="url(#ahair)"/>
+            <path d="M96 268 Q150 236 204 268 L204 300 L96 300 Z" fill="#3EE6C1"/>
+            <rect x="132" y="214" width="36" height="44" rx="14" fill="#D9A27F"/>
+            <ellipse cx="150" cy="158" rx="72" ry="84" fill="url(#askin)"/>
+            <path d="M80 140 Q96 76 150 72 Q206 76 222 132 Q196 104 150 102 Q112 104 80 140 Z" fill="url(#ahair)"/>
+            <g class="eye"><ellipse cx="122" cy="156" rx="9" ry="11" fill="#22303F"/><circle cx="125" cy="152" r="3" fill="#fff"/></g>
+            <g class="eye"><ellipse cx="178" cy="156" rx="9" ry="11" fill="#22303F"/><circle cx="181" cy="152" r="3" fill="#fff"/></g>
+            <path d="M108 136 Q122 128 136 134" stroke="#3B2A22" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <path d="M164 134 Q178 128 192 136" stroke="#3B2A22" stroke-width="4" fill="none" stroke-linecap="round"/>
+            <ellipse cx="104" cy="184" rx="12" ry="7" fill="#F1A9A0" opacity=".55"/>
+            <ellipse cx="196" cy="184" rx="12" ry="7" fill="#F1A9A0" opacity=".55"/>
+            <ellipse class="mouth" cx="150" cy="208" rx="16" ry="10" fill="#9C3F45"/>
+          </svg>
+        </div>
+        <div class="voice-body">
+          <div class="voice-top">
+            <div class="status"><span class="dot" id="vDot"></span><span id="vStatus">Слушаю…</span></div>
+            <div class="voice-actions">
+              <button class="lang-btn" data-lang="uz">O'zbekcha</button>
+              <button class="lang-btn" data-lang="ru">Русский</button>
+              <button class="icon-btn" id="closeVoice" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+            </div>
+          </div>
+          <div class="muted" id="vYouLabel">Вы сказали</div>
+          <div class="heard" id="vHeard">…</div>
+          <div class="answer" id="vAnswer"></div>
+          <div class="chips" id="vChips"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- settings -->
+    <div class="overlay" id="settings" hidden>
+      <div class="sheet">
+        <div class="sheet-head">
+          <div class="h1">Настройки</div>
+          <button class="icon-btn" id="closeSettings" aria-label="Закрыть"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+        </div>
+        <div class="sheet-grid">
+          <div class="field">
+            <div class="muted">Язык ассистента</div>
+            <div class="seg" id="langSeg">
+              <button data-lang="uz">O'zbekcha</button>
+              <button data-lang="ru">Русский</button>
+            </div>
+          </div>
+          <div class="toggles" id="toggles"></div>
+          <div class="field">
+            <div class="muted">Кнопка голоса на руле</div>
+            <div class="row">
+              <span id="keyInfo" class="small"></span>
+              <button class="wide-btn slim" id="useLastKey">Назначить последнюю нажатую</button>
+            </div>
+          </div>
+          <div class="row">
+            <button class="wide-btn slim" id="reopenPerms">Разрешения</button>
+            <span class="muted small" id="version"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ONBOARDING ============ -->
+  <section id="onboard" class="screen" hidden>
+    <div class="ob-left">
+      <div>
+        <div class="ob-icon"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"/><path d="M5 11a7 7 0 0 0 14 0"/><path d="M12 18v3"/></svg></div>
+        <h1 class="ob-title">Salom!<br>Настроим Yo'ldosh</h1>
+        <p class="ob-text">Чтобы ассистент слышал вас, управлял музыкой, картой и машиной, дайте несколько разрешений. Это делается один раз.</p>
+      </div>
+      <div class="ob-bottom">
+        <div class="muted" id="obCount"></div>
+        <div class="progress thick"><div id="obBar"></div></div>
+        <button class="primary" id="obNext">Разрешить следующее</button>
+        <button class="ghost" id="obSkip">Пропустить, настрою позже</button>
+      </div>
+    </div>
+    <div class="ob-list" id="obList"></div>
+  </section>
+
+  <div class="toast" id="toast" hidden></div>
+</div>
+<script src="commands.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

@@ -46,6 +46,7 @@ class Voice(
     }
 
     fun start(lang: String) {
+        stopWake()
         stop()
         wantLang = lang
         val m = models[lang]
@@ -69,6 +70,57 @@ class Voice(
         } catch (e: Exception) {
             onState("error:" + (e.message ?: "микрофон недоступен"))
         }
+    }
+
+    // ---- hands-free wake phrase ("Salom, Yo'ldosh") while the app is on screen -------------------
+
+    private var wakeService: SpeechService? = null
+    private var wakeLang: String? = null
+    var onWake: (() -> Unit)? = null
+    private val wakeRe = Regex("(йолдош|ёлдош|йулдош|юлдош|ёлдаш|йолдаш|yoldosh|yo ldosh|yo'ldosh|yuldosh|joldosh)")
+
+    fun startWake(lang: String) {
+        if (service != null) return
+        stopWake()
+        val m = models[lang]
+        if (m == null) {
+            preload(lang)
+            wakeLang = lang
+            main.postDelayed({ if (wakeLang == lang && models.containsKey(lang)) startWake(lang) }, 4000)
+            return
+        }
+        try {
+            val s = SpeechService(Recognizer(m, 16000.0f), 16000.0f)
+            wakeService = s
+            wakeLang = lang
+            s.startListening(wakeListener)
+        } catch (_: Exception) { stopWake() }
+    }
+
+    fun stopWake() {
+        wakeLang = null
+        val s = wakeService ?: return
+        wakeService = null
+        try { s.stop() } catch (_: Exception) {}
+        try { s.shutdown() } catch (_: Exception) {}
+    }
+
+    private fun checkWake(hyp: String?, key: String) {
+        val t = text(hyp, key).lowercase()
+        if (t.isNotBlank() && wakeRe.containsMatchIn(t)) {
+            main.post {
+                stopWake()
+                onWake?.invoke()
+            }
+        }
+    }
+
+    private val wakeListener = object : RecognitionListener {
+        override fun onPartialResult(hypothesis: String?) = checkWake(hypothesis, "partial")
+        override fun onResult(hypothesis: String?) = checkWake(hypothesis, "text")
+        override fun onFinalResult(hypothesis: String?) {}
+        override fun onError(exception: Exception?) { main.post { stopWake() } }
+        override fun onTimeout() {}
     }
 
     private fun text(hyp: String?, key: String): String {
@@ -114,6 +166,7 @@ class Voice(
     }
 
     fun release() {
+        stopWake()
         stop()
         models.values.forEach { try { it.close() } catch (_: Exception) {} }
         models.clear()

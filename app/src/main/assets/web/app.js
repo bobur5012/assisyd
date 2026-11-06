@@ -176,11 +176,25 @@
     if (!r) toast(T[L()].noNavi);
     return r;
   }
+  // Saved places (Settings → «Запомнить здесь») give a real route; otherwise fall back to a search.
+  function goPlace(kind) {
+    var r = A.routeTo ? A.routeTo(kind) : '';
+    if (r) return r;
+    var ru = L() === 'ru';
+    var q = kind === 'home' ? (ru ? 'Дом' : 'Uy') : (ru ? 'Работа' : 'Ish');
+    var res = navigate(q);
+    if (res) toast(ru ? 'Совет: сохраните «' + q + '» в настройках — маршрут будет строиться сразу'
+                      : 'Maslahat: sozlamalarda «' + q + '» manzilini saqlang');
+    return res;
+  }
   function openNavi() {
     if (!A.openPackage('ru.yandex.yandexnavi') && !A.openPackage('ru.yandex.yandexmaps')) toast(T[L()].noNavi);
   }
   document.querySelectorAll('[data-nav]').forEach(function (b) {
-    b.addEventListener('click', function () { navigate(b.getAttribute('data-nav')); });
+    b.addEventListener('click', function () {
+      var q = b.getAttribute('data-nav');
+      if (q === 'Дом') goPlace('home'); else if (q === 'Работа') goPlace('work'); else navigate(q);
+    });
   });
   $('openNavi').addEventListener('click', openNavi);
   $('openNavi2').addEventListener('click', openNavi);
@@ -232,6 +246,17 @@
     $('voice').hidden = true;
     listening(false); talking(false);
     A.stopListen(); A.stopSpeaking();
+    armWake(1500);
+  }
+
+  // Hands-free "Salom, Yo'ldosh" (Settings → toggle). Only while Yo'ldosh is on screen.
+  var wakeTimer;
+  function armWake(delay) {
+    clearTimeout(wakeTimer);
+    if (!settings.wake || !A.startWake) return;
+    wakeTimer = setTimeout(function () {
+      if (!voiceOpen && $('onboard').hidden) A.startWake(L());
+    }, delay || 0);
   }
   $('micBtn').addEventListener('click', openVoice);
   $('closeVoice').addEventListener('click', closeVoice);
@@ -272,8 +297,8 @@
       case 'openMusic': A.media('open'); reply = x.noMusic; break;
       case 'volUp': reply = x.volUp + ' · ' + volume(1) + '%'; break;
       case 'volDown': reply = x.volDown + ' · ' + volume(-1) + '%'; break;
-      case 'navHome': reply = navigate(l === 'ru' ? 'Дом' : 'Uy') ? x.navHome : x.noNavi; break;
-      case 'navWork': reply = navigate(l === 'ru' ? 'Работа' : 'Ish') ? x.navWork : x.noNavi; break;
+      case 'navHome': reply = goPlace('home') ? x.navHome : x.noNavi; break;
+      case 'navWork': reply = goPlace('work') ? x.navWork : x.noNavi; break;
       case 'navCharge': reply = navigate('Зарядка для электромобилей') ? x.navCharge : x.noNavi; break;
       case 'navFuel': reply = navigate('АЗС') ? x.navFuel : x.noNavi; break;
       case 'navTo': reply = navigate(c.arg) ? x.navTo + c.arg : x.noNavi; break;
@@ -305,6 +330,7 @@
     renderLang();
   }
   var TOGGLES = [
+    ['wake', 'Вызов фразой «Salom, Yo‘ldosh»', 'Ассистент слушает фразу, пока Yo‘ldosh открыт на экране'],
     ['speak', 'Отвечать голосом', 'Если на магнитоле есть синтез речи'],
     ['bubble', 'Плавающая кнопка', 'Кнопка ассистента поверх навигатора и других приложений'],
     ['autostart', 'Автозапуск', 'Открывать Yo‘ldosh при включении магнитолы']
@@ -325,14 +351,29 @@
     var k = b.getAttribute('data-tg');
     settings[k] = !settings[k];
     A.setSetting(k, String(settings[k]));
+    if (k === 'wake') { if (settings.wake) armWake(300); else if (A.stopWake) A.stopWake(); }
     renderSettings();
   });
+  function renderPlaces() {
+    $('placeHome').textContent = settings.home ? 'Дом сохранён · обновить' : 'Здесь мой дом';
+    $('placeWork').textContent = settings.work ? 'Работа сохранена · обновить' : 'Здесь моя работа';
+  }
+  function savePlace(kind) {
+    if (!perms.location) { A.requestPerm('location'); toast('Разрешите геолокацию и нажмите ещё раз'); return; }
+    if (A.saveHere && A.saveHere(kind)) {
+      settings[kind] = true;
+      toast(kind === 'home' ? 'Дом сохранён. Скажите «Поехали домой»' : 'Работа сохранена. Скажите «На работу»');
+    } else toast('Не удалось определить место. Подождите, пока появится GPS, и попробуйте снова');
+    renderPlaces();
+  }
+  $('placeHome').addEventListener('click', function () { savePlace('home'); });
+  $('placeWork').addEventListener('click', function () { savePlace('work'); });
   $('langSeg').addEventListener('click', function (e) {
     var b = e.target.closest('[data-lang]'); if (b) setLang(b.getAttribute('data-lang'));
   });
   $('openSettings').addEventListener('click', function () {
     try { settings = JSON.parse(A.settings()); } catch (e) {}
-    renderSettings(); renderLang();
+    renderSettings(); renderPlaces(); renderLang();
     $('settings').hidden = false;
   });
   $('closeSettings').addEventListener('click', function () { $('settings').hidden = true; });
@@ -382,6 +423,7 @@
     settings.onboarded = true;
     A.setSetting('onboarded', 'true');
     showOnboarding(false);
+    armWake(500);
   }
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-perm]'); if (!b || b.disabled) return;
@@ -412,6 +454,9 @@
       case 'listen':
         if ($('onboard').hidden) openVoice();
         break;
+      case 'resumed':
+        if (!voiceOpen) armWake(800);
+        break;
       case 'voice':
         if (!voiceOpen) return;
         var st = data.state || '';
@@ -436,4 +481,5 @@
   try { media = JSON.parse(A.mediaState()); } catch (e) {}
   renderMedia();
   A.ready();
+  armWake(3000);
 })();

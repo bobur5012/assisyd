@@ -28,6 +28,7 @@ object MediaHub {
     private var ctrl: MediaController? = null
     private var hasAccess = false
     private val main = Handler(Looper.getMainLooper())
+    private var playAfterOpen = 0L
     private var artKey: String? = null
     private var artData: String = ""
 
@@ -72,6 +73,11 @@ object MediaHub {
             try { ctrl?.unregisterCallback(callback) } catch (_: Exception) {}
             ctrl = c
             c?.registerCallback(callback, main)
+        }
+        // "Включи музыку" opened Yandex Music: start playback as soon as its session appears.
+        if (c != null && playAfterOpen > 0 && SystemClock.elapsedRealtime() - playAfterOpen < 20000) {
+            playAfterOpen = 0
+            main.postDelayed({ try { c.transportControls.play() } catch (_: Exception) {} }, 800)
         }
         push()
     }
@@ -137,7 +143,12 @@ object MediaHub {
     fun command(ctx: Context, cmd: String) {
         val t = ctrl?.transportControls
         if (t == null) {
-            if (cmd == "play" || cmd == "toggle" || cmd == "open") openMusic(ctx)
+            if (cmd == "play" || cmd == "toggle") {
+                if (openMusic(ctx)) {
+                    playAfterOpen = SystemClock.elapsedRealtime()
+                    main.postDelayed({ attach() }, 3000)
+                }
+            } else if (cmd == "open") openMusic(ctx)
             return
         }
         when (cmd) {

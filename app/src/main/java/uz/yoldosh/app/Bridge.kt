@@ -3,6 +3,8 @@ package uz.yoldosh.app
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.location.Location
+import android.location.LocationManager
 import android.media.AudioManager
 import android.net.Uri
 import android.webkit.JavascriptInterface
@@ -26,16 +28,21 @@ class Bridge(private val act: MainActivity) {
     init {
         MediaHub.listener = { act.emit("media", it) }
         MediaHub.init(ctx)
+        voice.onWake = { act.emit("listen", true) }
     }
 
     // ---- lifecycle -------------------------------------------------------------------------
 
     fun onResume() {
         MediaHub.attach()
-        if (pageReady) pushPerms()
+        if (pageReady) {
+            pushPerms()
+            act.emit("resumed", true)
+        }
     }
 
     fun onStop() {
+        voice.stopWake()
         voice.stop()
     }
 
@@ -73,6 +80,9 @@ class Bridge(private val act: MainActivity) {
         .put("speak", Prefs.bool(ctx, "speak", true))
         .put("bubble", Prefs.bool(ctx, "bubble", true))
         .put("autostart", Prefs.bool(ctx, "autostart", false))
+        .put("wake", Prefs.bool(ctx, "wake", false))
+        .put("home", Prefs.str(ctx, "home_lat", "").isNotEmpty())
+        .put("work", Prefs.str(ctx, "work_lat", "").isNotEmpty())
         .put("onboarded", Prefs.bool(ctx, "onboarded", false))
         .put("lastKey", Prefs.int(ctx, "lastKey", -1))
         .put("wheelKey", Prefs.int(ctx, "wheelKey", -1))
@@ -87,7 +97,7 @@ class Bridge(private val act: MainActivity) {
                 Prefs.put(ctx, "lang", value)
                 if (Perms.status(ctx).optBoolean("mic")) act.runOnUiThread { voice.preload(value) }
             }
-            "speak", "bubble", "autostart", "onboarded" -> Prefs.put(ctx, key, value == "true")
+            "speak", "bubble", "autostart", "onboarded", "wake" -> Prefs.put(ctx, key, value == "true")
             "wheelKey" -> Prefs.put(ctx, "wheelKey", value.toIntOrNull() ?: -1)
         }
     }
@@ -110,6 +120,55 @@ class Bridge(private val act: MainActivity) {
 
     @JavascriptInterface
     fun stopListen() = act.runOnUiThread { voice.stop() }
+
+    /** Listen for "Salom, Yo'ldosh" in the background while the app is on screen. */
+    @JavascriptInterface
+    fun startWake(lang: String) = act.runOnUiThread {
+        if (Prefs.bool(ctx, "wake", false) && Perms.status(ctx).optBoolean("mic")) {
+            voice.startWake(if (lang == "ru") "ru" else "uz")
+        }
+    }
+
+    @JavascriptInterface
+    fun stopWake() = act.runOnUiThread { voice.stopWake() }
+
+    /** Remembers the current GPS position as "home" or "work". */
+    @JavascriptInterface
+    fun saveHere(kind: String): Boolean {
+        if (kind != "home" && kind != "work") return false
+        val fine = ctx.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = ctx.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!fine && !coarse) return false
+        val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        var best: Location? = null
+        for (p in lm.getProviders(true)) {
+            val l = try { lm.getLastKnownLocation(p) } catch (_: SecurityException) { null } ?: continue
+            if (best == null || l.time > best.time) best = l
+        }
+        val b = best ?: return false
+        Prefs.put(ctx, "${kind}_lat", b.latitude.toString())
+        Prefs.put(ctx, "${kind}_lon", b.longitude.toString())
+        return true
+    }
+
+    /** Builds a route to a saved place in Yandex Navigator (or Maps). Returns the app used or "". */
+    @JavascriptInterface
+    fun routeTo(kind: String): String {
+        val lat = Prefs.str(ctx, "${kind}_lat", "")
+        val lon = Prefs.str(ctx, "${kind}_lon", "")
+        if (lat.isEmpty() || lon.isEmpty()) return ""
+        val options = listOf(
+            "navigator" to "yandexnavi://build_route_on_map?lat_to=$lat&lon_to=$lon",
+            "maps" to "yandexmaps://maps.yandex.ru/?rtext=~$lat,$lon&rtt=auto",
+        )
+        for ((name, uri) in options) {
+            val i = Intent(Intent.ACTION_VIEW, Uri.parse(uri)).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            if (i.resolveActivity(ctx.packageManager) != null) {
+                try { ctx.startActivity(i); return name } catch (_: Exception) {}
+            }
+        }
+        return ""
+    }
 
     @JavascriptInterface
     fun speak(text: String, lang: String): Boolean {

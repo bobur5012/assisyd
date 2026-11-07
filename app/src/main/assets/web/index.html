@@ -178,10 +178,16 @@
           </div>
           <div class="field">
             <div class="muted">Управление машиной (климат, окна)</div>
-            <div class="row">
-              <span class="small" id="carHint">Нажмите, чтобы узнать, что доступно на вашей магнитоле</span>
-              <button class="wide-btn slim" id="carDiag">Диагностика машины</button>
+            <button class="primary" id="carSend">📤 Отправить диагностику разработчику</button>
+            <div id="reportBox" class="report" hidden>
+              <div class="muted small">Ссылка с отчётом — пришлите её разработчику:</div>
+              <div class="report-url" id="reportUrl"></div>
+              <div class="seg">
+                <button id="reportCopy">Скопировать ссылку</button>
+                <button id="reportShare">Отправить в Telegram</button>
+              </div>
             </div>
+            <button class="wide-btn slim" id="carDiag">Показать технические данные</button>
             <pre id="carOut" class="diag" hidden></pre>
           </div>
           <div class="row">

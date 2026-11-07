@@ -337,6 +337,50 @@ class Bridge(private val act: MainActivity) {
         JSONObject().put("error", t.message ?: "probe failed").toString()
     }
 
+    /** Device + firmware facts for the diagnostic report. */
+    @JavascriptInterface
+    fun deviceInfo(): String {
+        val o = JSONObject()
+        o.put("model", android.os.Build.MODEL)
+        o.put("brand", android.os.Build.BRAND)
+        o.put("manufacturer", android.os.Build.MANUFACTURER)
+        o.put("device", android.os.Build.DEVICE)
+        o.put("product", android.os.Build.PRODUCT)
+        o.put("android", android.os.Build.VERSION.RELEASE)
+        o.put("sdk", android.os.Build.VERSION.SDK_INT)
+        o.put("fingerprint", android.os.Build.FINGERPRINT)
+        o.put("ttsEngine", speaker.engine)
+        return o.toString()
+    }
+
+    /** Uploads the diagnostic report to a paste service and returns the URL via the "report" event. */
+    @JavascriptInterface
+    fun uploadReport(text: String) {
+        Thread {
+            val url = Net.paste(text)
+            act.emit("report", JSONObject().put("ok", url != null).put("url", url ?: ""))
+        }.start()
+    }
+
+    @JavascriptInterface
+    fun copyText(text: String) = act.runOnUiThread {
+        try {
+            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("Yo'ldosh", text))
+            Toast.makeText(ctx, "Скопировано", Toast.LENGTH_SHORT).show()
+        } catch (_: Exception) {}
+    }
+
+    @JavascriptInterface
+    fun shareText(text: String) = act.runOnUiThread {
+        try {
+            val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
+            act.startActivity(Intent.createChooser(i, "Отправить отчёт").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Exception) {
+            Toast.makeText(ctx, "Нет приложения для отправки", Toast.LENGTH_SHORT).show()
+        }
+    }
+
     @JavascriptInterface
     fun toast(text: String) = act.runOnUiThread { Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show() }
 

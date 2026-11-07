@@ -475,18 +475,45 @@
     renderSettings();
   });
   $('reopenPerms').addEventListener('click', function () { $('settings').hidden = true; showOnboarding(true); });
+  function buildReport() {
+    var r = { app: settings.version, when: new Date().toISOString() };
+    try { r.device = JSON.parse(A.deviceInfo ? A.deviceInfo() : '{}'); } catch (e) { r.device = { err: String(e) }; }
+    r.webview = (navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1] || '?';
+    r.ua = navigator.userAgent;
+    r.screen = window.innerWidth + 'x' + window.innerHeight;
+    r.lang = settings.lang;
+    r.ttsEngine = settings.ttsEngine;
+    r.has3d = has3d;
+    r.perms = perms;
+    try { r.installedApps = JSON.parse(A.installed ? A.installed() : '[]'); } catch (e) {}
+    try { r.media = JSON.parse(A.mediaState ? A.mediaState() : '{}'); } catch (e) {}
+    try { r.car = JSON.parse(A.carProbe ? A.carProbe() : '{}'); } catch (e) { r.car = { err: String(e) }; }
+    if (lastCar) r.lastCarCommand = lastCar;
+    if (errors.length) r.jsErrors = errors;
+    return JSON.stringify(r, null, 2);
+  }
+
   $('carDiag').addEventListener('click', function () {
     var out = $('carOut');
-    out.hidden = false;
-    out.textContent = 'Опрашиваю машину…';
-    setTimeout(function () {
-      var data;
-      try { data = A.carProbe ? JSON.parse(A.carProbe()) : { error: 'нет моста' }; }
-      catch (e) { data = { error: String(e) }; }
-      if (lastCar) data.lastCommand = lastCar;
-      out.textContent = JSON.stringify(data, null, 2);
-      $('carHint').textContent = data.available ? 'API машины найдено — пришлите мне этот текст' : 'Прямое API недоступно — пришлите мне этот текст';
-    }, 50);
+    out.hidden = !out.hidden;
+    if (!out.hidden) out.textContent = buildReport();
+  });
+  $('carSend').addEventListener('click', function () {
+    $('carSend').textContent = 'Отправляю…';
+    $('carSend').disabled = true;
+    var text = buildReport();
+    window._report = text;
+    if (A.uploadReport) A.uploadReport(text);
+    else onNative('report', { ok: false, url: '' });
+  });
+  function reportPayload() {
+    var u = $('reportUrl').textContent || '';
+    return u.indexOf('http') === 0 ? u : (window._report || '');
+  }
+  $('reportCopy').addEventListener('click', function () { if (A.copyText) A.copyText(reportPayload()); });
+  $('reportShare').addEventListener('click', function () {
+    var p = reportPayload();
+    if (A.shareText) A.shareText(p.indexOf('http') === 0 ? 'Диагностика Yo‘ldosh: ' + p : p);
   });
 
   // ---------------------------------------------------------------- onboarding / permissions
@@ -557,6 +584,18 @@
       case 'location':
         here = { lat: data.lat, lon: data.lon };
         showMap(false);
+        break;
+      case 'report':
+        $('carSend').textContent = '📤 Отправить диагностику разработчику';
+        $('carSend').disabled = false;
+        $('reportBox').hidden = false;
+        if (data.ok && data.url) {
+          $('reportUrl').textContent = data.url;
+          $('reportShare').textContent = 'Отправить в Telegram';
+        } else {
+          $('reportUrl').textContent = 'Нет интернета для отправки — нажмите «Поделиться» и отправьте текст';
+          $('reportShare').textContent = 'Поделиться отчётом';
+        }
         break;
       case 'resumed':
         if (!voiceOpen) armWake(800);

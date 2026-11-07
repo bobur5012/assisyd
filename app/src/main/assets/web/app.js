@@ -56,7 +56,10 @@
       navHome: 'Строю маршрут домой', navWork: 'Строю маршрут на работу', navCharge: 'Ищу зарядки поблизости', navFuel: 'Ищу заправки рядом',
       navTo: 'Ищу: ', noNavi: 'Не нашёл Яндекс Навигатор или Карты на магнитоле', openNavi: 'Открываю навигатор',
       openApp: 'Открываю ', noApp: 'Не нашёл такое приложение: ',
-      car: 'Управление машиной подключу в следующей версии, после проверки на вашей магнитоле.',
+      car: 'Это я подключу после диагностики машины — откройте «Диагностика машины» в настройках.',
+      carFail: 'Пока не получилось управлять машиной на этой прошивке. Откройте «Диагностика машины» в настройках и пришлите мне результат.',
+      acOn: 'Включаю кондиционер', acOff: 'Выключаю кондиционер',
+      winOpen: 'Открываю окна', winClose: 'Закрываю окна', tempSet: 'Готово, климат на ',
       time: 'Сейчас ', thanks: 'Всегда пожалуйста!', who: 'Я Yo‘ldosh, ваш помощник в дороге.',
       help: 'Я включаю музыку, строю маршруты, открываю приложения и меняю громкость. Скоро научусь управлять машиной.',
       close: 'Хорошо'
@@ -71,7 +74,10 @@
       navHome: 'Uyga yo‘l tuzyapman', navWork: 'Ishga yo‘l tuzyapman', navCharge: 'Yaqin zaryadkalarni qidiryapman', navFuel: 'Yaqin zapravkalarni qidiryapman',
       navTo: 'Qidiryapman: ', noNavi: 'Yandex Navigator yoki Xaritalar topilmadi', openNavi: 'Navigatorni ochyapman',
       openApp: 'Ochyapman: ', noApp: 'Bunday ilova topilmadi: ',
-      car: 'Mashinani boshqarishni keyingi versiyada ulayman.',
+      car: 'Buni mashina diagnostikasidan keyin ulayman — sozlamalardan «Diagnostika»ni oching.',
+      carFail: 'Bu proshivkada hali boshqarib bo‘lmadi. Sozlamalardan «Diagnostika»ni ochib, natijani menga yuboring.',
+      acOn: 'Konditsionerni yoqyapman', acOff: 'Konditsionerni o‘chiryapman',
+      winOpen: 'Oynani tushiryapman', winClose: 'Oynani ko‘taryapman', tempSet: 'Bajarildi, harorat ',
       time: 'Hozir soat ', thanks: 'Arzimaydi!', who: 'Men Yo‘ldosh, yo‘ldagi yordamchingizman.',
       help: 'Musiqa qo‘yaman, yo‘l tuzaman, ilovalarni ochaman va ovozni o‘zgartiraman.',
       close: 'Xo‘p'
@@ -138,10 +144,17 @@
   $('carControls').addEventListener('click', function (e) {
     var b = e.target.closest('[data-car]'); if (!b) return;
     var k = b.getAttribute('data-car');
+    car[k] = !car[k];
+    renderCar();
     var mv = $('car3d');
     if (has3d && mv && ORBITS[k]) { mv.setAttribute('camera-orbit', ORBITS[k]); }
-    showCarSide(k === 'trunk' ? 'rear' : 'front');
-    toast('Управление машиной подключим в следующей версии');
+    if (!has3d) showCarSide(k === 'trunk' ? 'rear' : 'front');
+    if (k === 'windows') {
+      var r = tryCar(car.windows ? 'window_open' : 'window_close', 0);
+      toast(r.ok ? (car.windows ? 'Открываю окна' : 'Закрываю окна') : 'Окна подключу после диагностики машины (в настройках)');
+    } else {
+      toast('Эту функцию подключу после диагностики машины — в настройках');
+    }
   });
   renderCar();
 
@@ -270,6 +283,16 @@
     b.addEventListener('click', function () { volume(+b.getAttribute('data-vol')); });
   });
 
+  // ---------------------------------------------------------------- car comfort control
+  var lastCar = null;
+  function tryCar(action, value) {
+    try {
+      var r = A.car ? JSON.parse(A.car(action, value || 0)) : { ok: false, detail: 'no-bridge' };
+      lastCar = action + ' -> ' + (r.ok ? 'ok' : 'fail') + ': ' + (r.detail || '');
+      return r;
+    } catch (e) { lastCar = action + ' -> error: ' + e; return { ok: false, detail: String(e) }; }
+  }
+
   // ---------------------------------------------------------------- voice assistant
   var voiceOpen = false, speakingTimer = null, closeTimer = null;
   function setStatus(text, err) {
@@ -368,6 +391,9 @@
         if (!label && al) label = A.openApp(al);
         reply = label ? x.openApp + label : x.noApp + c.arg;
         break;
+      case 'carTemp': { var r = tryCar('temp', c.value); reply = r.ok ? x.tempSet + c.value + '°' : x.carFail; break; }
+      case 'carAc': { var r2 = tryCar(c.value ? 'ac_on' : 'ac_off', 0); reply = r2.ok ? (c.value ? x.acOn : x.acOff) : x.carFail; break; }
+      case 'carWindow': { var r3 = tryCar(c.value ? 'window_open' : 'window_close', 0); reply = r3.ok ? (c.value ? x.winOpen : x.winClose) : x.carFail; break; }
       case 'car': reply = x.car; break;
       case 'time': reply = x.time + hhmm(new Date()); break;
       case 'date': reply = dateText(new Date()); break;
@@ -449,6 +475,19 @@
     renderSettings();
   });
   $('reopenPerms').addEventListener('click', function () { $('settings').hidden = true; showOnboarding(true); });
+  $('carDiag').addEventListener('click', function () {
+    var out = $('carOut');
+    out.hidden = false;
+    out.textContent = 'Опрашиваю машину…';
+    setTimeout(function () {
+      var data;
+      try { data = A.carProbe ? JSON.parse(A.carProbe()) : { error: 'нет моста' }; }
+      catch (e) { data = { error: String(e) }; }
+      if (lastCar) data.lastCommand = lastCar;
+      out.textContent = JSON.stringify(data, null, 2);
+      $('carHint').textContent = data.available ? 'API машины найдено — пришлите мне этот текст' : 'Прямое API недоступно — пришлите мне этот текст';
+    }, 50);
+  });
 
   // ---------------------------------------------------------------- onboarding / permissions
   var PERMS = [

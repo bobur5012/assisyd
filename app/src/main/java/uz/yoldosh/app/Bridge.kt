@@ -313,6 +313,30 @@ class Bridge(private val act: MainActivity) {
         return arr.toString()
     }
 
+    /**
+     * Comfort control of the car. action: ac_on, ac_off, temp (value °C), fan (value 0-7),
+     * window_open, window_close. Returns JSON {ok, detail}. Never controls safety systems.
+     */
+    @JavascriptInterface
+    fun car(action: String, value: Int): String {
+        val r = when (action) {
+            "ac_on" -> CarControl.setAc(ctx, true)
+            "ac_off" -> CarControl.setAc(ctx, false)
+            "temp" -> CarControl.setTemperature(ctx, value)
+            "fan" -> CarControl.setFan(ctx, value)
+            "window_open" -> CarControl.window(ctx, 0, true)
+            "window_close" -> CarControl.window(ctx, 0, false)
+            else -> CarControl.Result(false, "unknown-action")
+        }
+        return JSONObject().put("ok", r.ok).put("detail", r.detail).toString()
+    }
+
+    /** Read-only discovery of the car's vehicle API, so we can wire the exact working commands. */
+    @JavascriptInterface
+    fun carProbe(): String = try { CarControl.probe(ctx).toString() } catch (t: Throwable) {
+        JSONObject().put("error", t.message ?: "probe failed").toString()
+    }
+
     @JavascriptInterface
     fun toast(text: String) = act.runOnUiThread { Toast.makeText(ctx, text, Toast.LENGTH_SHORT).show() }
 

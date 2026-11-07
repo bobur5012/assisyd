@@ -61,12 +61,53 @@
     { intent: 'close', re: /^(отмена|ничего|закрой|все|всё|bekor|hech narsa|yop)$/ },
   ];
 
+  // Numbers 16..33 for climate, spoken as words (ru/uz) or digits.
+  function numFromText(t) {
+    var digit = t.match(/\b(\d{1,2})\b/); if (digit) return +digit[1];
+    var toks = t.split(' ');
+    var teens = { 'шестнадцать': 16, 'семнадцать': 17, 'восемнадцать': 18, 'девятнадцать': 19 };
+    var tens = { 'двадцать': 20, 'тридцать': 30, 'yigirma': 20, 'ottiz': 30, 'on': 10 };
+    var units = {
+      'один': 1, 'два': 2, 'три': 3, 'четыре': 4, 'пять': 5, 'шесть': 6, 'семь': 7, 'восемь': 8, 'девять': 9,
+      'bir': 1, 'ikki': 2, 'uch': 3, 'tort': 4, 'besh': 5, 'olti': 6, 'yetti': 7, 'sakkiz': 8, 'toqqiz': 9
+    };
+    for (var i = 0; i < toks.length; i++) if (teens[toks[i]] != null) return teens[toks[i]];
+    var base = null, unit = null;
+    for (var j = 0; j < toks.length; j++) {
+      if (base == null && tens[toks[j]] != null) base = tens[toks[j]];
+      if (unit == null && units[toks[j]] != null) unit = units[toks[j]];
+    }
+    if (base != null) return base + (unit || 0);
+    return null;
+  }
+
+  // Structured comfort-control intents (climate / windows). Returns {intent, value} or null.
+  function classifyCar(s) {
+    var hasAc = /кондиционер|климат|konditsioner|konditsaner|harorat|харорат|температур|gradus|градус|печк|isit|sovut/.test(s);
+    var hasWin = /окн|oyna/.test(s);
+    var num = numFromText(s);
+    var off = /выключ|ochir|убери|otklyuch|o.chir/.test(s);
+
+    if (hasWin) {
+      var closeW = /закрой|kotar|yop|подним|zakroy/.test(s);
+      var openW = /открой|tushir|опусти|pastga|och|spusti/.test(s);
+      return { intent: 'carWindow', value: (closeW && !openW) ? 0 : 1 };
+    }
+    if (num != null && num >= 16 && num <= 33 && (hasAc || /поставь|сделай|qoy|qo.y|ustan/.test(s))) {
+      return { intent: 'carTemp', value: num };
+    }
+    if (hasAc) return { intent: 'carAc', value: off ? 0 : 1 };
+    return null;
+  }
+
   function parse(raw) {
     var t = norm(raw);
     var hadWakeOnly = /^(салом|салам|привет|salom)?\s*(йолдош|ёлдош|йулдош|юлдош|yoldosh|yuldosh)$/.test(t);
     if (hadWakeOnly) return { intent: 'hello', text: t };
     var s = stripWake(t);
     if (!s) return { intent: 'hello', text: t };
+    var carHit = classifyCar(s);
+    if (carHit) { carHit.text = s; return carHit; }
     for (var i = 0; i < rules.length; i++) {
       var m = s.match(rules[i].re);
       if (m) {

@@ -4,6 +4,7 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
+import android.media.AudioManager
 import android.media.MediaMetadata
 import android.media.session.MediaController
 import android.media.session.MediaSessionManager
@@ -12,6 +13,7 @@ import android.os.Handler
 import android.os.Looper
 import android.os.SystemClock
 import android.util.Base64
+import android.view.KeyEvent
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 
@@ -88,6 +90,8 @@ object MediaHub {
         val c = ctrl
         if (c == null) {
             o.put("active", false)
+            val am = app.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+            o.put("playing", am.isMusicActive)
             return o
         }
         o.put("active", true)
@@ -142,23 +146,51 @@ object MediaHub {
 
     fun command(ctx: Context, cmd: String) {
         val t = ctrl?.transportControls
-        if (t == null) {
-            if (cmd == "play" || cmd == "toggle") {
-                if (openMusic(ctx)) {
-                    playAfterOpen = SystemClock.elapsedRealtime()
-                    main.postDelayed({ attach() }, 3000)
-                }
-            } else if (cmd == "open") openMusic(ctx)
+        if (t != null) {
+            when (cmd) {
+                "play" -> t.play()
+                "pause" -> t.pause()
+                "toggle" -> if (ctrl?.playbackState?.state == PlaybackState.STATE_PLAYING) t.pause() else t.play()
+                "next" -> t.skipToNext()
+                "prev" -> t.skipToPrevious()
+                "open" -> openMusic(ctx)
+            }
             return
         }
-        when (cmd) {
-            "play" -> t.play()
-            "pause" -> t.pause()
-            "toggle" -> if (ctrl?.playbackState?.state == PlaybackState.STATE_PLAYING) t.pause() else t.play()
-            "next" -> t.skipToNext()
-            "prev" -> t.skipToPrevious()
-            "open" -> openMusic(ctx)
+        if (cmd == "open") { openMusic(ctx); return }
+        // No media-session access (notification access not granted): use media buttons, like the steering wheel does.
+        val am = ctx.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+        val wantPlay = cmd == "play" || (cmd == "toggle" && !am.isMusicActive)
+        val key = when {
+            cmd == "next" -> KeyEvent.KEYCODE_MEDIA_NEXT
+            cmd == "prev" -> KeyEvent.KEYCODE_MEDIA_PREVIOUS
+            wantPlay -> KeyEvent.KEYCODE_MEDIA_PLAY
+            else -> KeyEvent.KEYCODE_MEDIA_PAUSE
         }
+        sendKey(am, key)
+        if (wantPlay) {
+            // Nothing started (Yandex Music not running yet): start it, press play, come back to Yo'ldosh.
+            main.postDelayed({
+                if (!am.isMusicActive && openMusic(ctx)) {
+                    playAfterOpen = SystemClock.elapsedRealtime()
+                    main.postDelayed({ sendKey(am, KeyEvent.KEYCODE_MEDIA_PLAY); attach() }, 3500)
+                    main.postDelayed({
+                        try {
+                            ctx.startActivity(Intent(ctx, MainActivity::class.java)
+                                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_REORDER_TO_FRONT))
+                        } catch (_: Exception) {}
+                    }, 4500)
+                }
+                push()
+            }, 1200)
+        }
+        main.postDelayed({ push() }, 700)
+    }
+
+    private fun sendKey(am: AudioManager, code: Int) {
+        val now = SystemClock.uptimeMillis()
+        am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_DOWN, code, 0))
+        am.dispatchMediaKeyEvent(KeyEvent(now, now, KeyEvent.ACTION_UP, code, 0))
     }
 
     fun openMusic(ctx: Context): Boolean {

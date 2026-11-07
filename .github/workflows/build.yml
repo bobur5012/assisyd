@@ -31,8 +31,10 @@ jobs:
       - name: Cache voice models
         uses: actions/cache@v4
         with:
-          path: ~/vosk
-          key: vosk-small-ru-uz-0.22
+          path: |
+            ~/vosk
+            ~/tts
+          key: models-vosk-0.22-sherpa-1.13.7-irina
 
       - name: Download offline voice models (Russian + Uzbek)
         run: |
@@ -51,6 +53,25 @@ jobs:
           }
           fetch ru vosk-model-small-ru-0.22
           fetch uz vosk-model-small-uz-0.22 || echo "::warning::Uzbek model not available"
+
+      - name: Download offline speech synthesis (sherpa-onnx + Russian Piper voice)
+        run: |
+          set -e
+          mkdir -p ~/tts app/libs app/src/main/assets/tts
+          if [ ! -f ~/tts/sherpa-onnx.aar ]; then
+            curl -fsSL --retry 3 -o ~/tts/sherpa-onnx.aar https://github.com/k2-fsa/sherpa-onnx/releases/download/v1.13.7/sherpa-onnx-1.13.7.aar
+          fi
+          cp ~/tts/sherpa-onnx.aar app/libs/sherpa-onnx.aar
+          if [ ! -d ~/tts/vits-piper-ru_RU-irina-medium ]; then
+            curl -fsSL --retry 3 -o /tmp/voice.tar.bz2 https://github.com/k2-fsa/sherpa-onnx/releases/download/tts-models/vits-piper-ru_RU-irina-medium.tar.bz2
+            tar xjf /tmp/voice.tar.bz2 -C ~/tts
+          fi
+          V=~/tts/vits-piper-ru_RU-irina-medium
+          cp $V/*.onnx app/src/main/assets/tts/model.onnx
+          cp $V/tokens.txt app/src/main/assets/tts/tokens.txt
+          rm -rf app/src/main/assets/tts/espeak-ng-data
+          cp -r $V/espeak-ng-data app/src/main/assets/tts/espeak-ng-data
+          ls -la app/src/main/assets/tts; du -sh app/src/main/assets/tts
 
       - name: Build
         run: gradle :app:assembleDebug --no-daemon --stacktrace

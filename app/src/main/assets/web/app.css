@@ -40,28 +40,33 @@ svg.fill path{fill:currentColor;stroke:none}
 .topright{display:flex;align-items:center;gap:20px;font-size:20px}
 .icon-btn{width:60px;height:60px;border-radius:18px;background:var(--s1);color:var(--soft);display:flex;align-items:center;justify-content:center;padding:16px}
 
-.grid{flex:1;display:grid;grid-template-columns:780px minmax(0,1fr) 460px;gap:24px;min-height:0}
+.grid{flex:1;display:grid;grid-template-columns:640px minmax(0,1fr) 440px;gap:24px;min-height:0}
 .card{background:var(--s1);border-radius:32px;min-height:0}
 .card-head{display:flex;justify-content:space-between;align-items:center}
 
 .car{padding:26px 30px;display:flex;flex-direction:column;gap:16px}
 .car-view{flex:1;position:relative;background:var(--deep);border-radius:24px;min-height:0;overflow:hidden}
-model-viewer{width:100%;height:100%;background:transparent;--poster-color:transparent}
+model-viewer{position:absolute;inset:0;width:100%;height:100%;background:transparent;--poster-color:transparent}
+.hidden3d{visibility:hidden}
+.car-img{position:absolute;left:4%;top:8%;width:92%;height:84%;object-fit:contain;transition:opacity .35s}
+.car-img.fade{opacity:0}
 .tag{position:absolute;top:18px;left:18px;padding:8px 14px;border-radius:12px;background:var(--s2);color:var(--muted);font-size:18px;font-weight:700}
 .tag.on{background:var(--amberDeep);color:var(--amber)}
 .credit{position:absolute;bottom:10px;left:16px;font-size:13px;color:var(--muted)}
-.car-controls{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px}
-.ctl{height:104px;border-radius:22px;background:var(--s2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:18px;font-weight:700}
+.car-controls{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.ctl{height:100px;font-size:16px!important;border-radius:22px;background:var(--s2);display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;font-size:18px;font-weight:700}
 .ctl svg{width:32px;height:32px}
 .ctl.on{background:var(--mint);color:var(--bg)}
 .ctl.warm.on{background:var(--amber)}
 
 .nav{display:flex;flex-direction:column;overflow:hidden}
 .map{flex:1;position:relative;background:var(--deep);min-height:0}
-.map svg{position:absolute;inset:0}
+.map iframe{position:absolute;inset:0;width:100%;height:100%;border:0;background:var(--deep)}
+.map-offline{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;color:var(--muted);font-size:20px;pointer-events:none}
+.map-btn{position:absolute;right:16px;top:16px;width:64px;height:64px;border-radius:18px;background:var(--bg);color:var(--mint);padding:18px}
 .map-label{position:absolute;bottom:14px;right:14px;padding:6px 12px;border-radius:10px;background:var(--bg);color:var(--muted);font-size:16px}
-.nav-body{padding:20px 24px 24px;display:flex;flex-direction:column;gap:14px}
-.nav-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+.nav-body{padding:16px 20px 20px;display:flex;flex-direction:column;gap:12px}
+.nav-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px}
 .chip-btn{height:68px;border-radius:20px;background:var(--s2);font-size:21px;font-weight:700}
 .wide-btn{height:72px;border-radius:20px;background:var(--mintDeep);color:var(--mint);font-size:22px;font-weight:800;padding:0 26px}
 .wide-btn.slim{height:60px;font-size:19px}

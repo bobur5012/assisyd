@@ -17,18 +17,29 @@
                perms: { mic: false, location: false, overlay: false, notif: false, a11y: false, battery: false, autostart: false } };
 
   var $ = function (id) { return document.getElementById(id); };
+  var errors = [];
+  window.addEventListener('error', function (e) {
+    errors.push(((e.filename || '').split('/').pop() + ':' + (e.lineno || '') + ' ' + (e.message || '')).slice(0, 120));
+    if (errors.length > 3) errors.shift();
+  });
   var settings = {};
   try { settings = JSON.parse(A.settings()); } catch (e) { settings = stub.settings; }
   var perms = {};
   var media = { access: false, active: false };
 
   // ---------------------------------------------------------------- scale the 1920x1080 layout to any screen
+  // Design is 1920 wide; the stage stretches vertically (or horizontally) to fill any head unit screen.
   function fit() {
-    var k = Math.min(window.innerWidth / 1920, window.innerHeight / 1080);
+    var w = window.innerWidth, h = window.innerHeight;
     var stage = $('stage');
+    var k, sw, sh;
+    if (w / h >= 1920 / 1080) { k = h / 1080; sh = 1080; sw = w / k; }
+    else { k = w / 1920; sw = 1920; sh = h / k; }
+    stage.style.width = sw + 'px';
+    stage.style.height = sh + 'px';
     stage.style.transform = 'scale(' + k + ')';
-    stage.style.left = Math.max(0, (window.innerWidth - 1920 * k) / 2) + 'px';
-    stage.style.top = Math.max(0, (window.innerHeight - 1080 * k) / 2) + 'px';
+    stage.style.left = '0px';
+    stage.style.top = '0px';
   }
   window.addEventListener('resize', fit);
   fit();
@@ -128,10 +139,31 @@
     var b = e.target.closest('[data-car]'); if (!b) return;
     var k = b.getAttribute('data-car');
     var mv = $('car3d');
-    if (mv && ORBITS[k]) { mv.setAttribute('camera-orbit', ORBITS[k]); }
+    if (has3d && mv && ORBITS[k]) { mv.setAttribute('camera-orbit', ORBITS[k]); }
+    showCarSide(k === 'trunk' ? 'rear' : 'front');
     toast('Управление машиной подключим в следующей версии');
   });
   renderCar();
+
+  // Still image by default; switch to the live 3D model only if this WebView can render it.
+  var has3d = false, carSide = 'front';
+  function showCarSide(side) {
+    if (has3d || side === carSide) return;
+    carSide = side;
+    var img = $('carImg');
+    img.classList.add('fade');
+    setTimeout(function () { img.src = 'car_' + side + '.webp'; img.classList.remove('fade'); }, 300);
+  }
+  $('carImg').addEventListener('click', function () { showCarSide(carSide === 'front' ? 'rear' : 'front'); });
+  (function try3d() {
+    var mv = $('car3d');
+    if (!mv || !window.customElements || !window.customElements.get || !window.customElements.get('model-viewer')) return;
+    mv.addEventListener('load', function () {
+      has3d = true;
+      mv.classList.remove('hidden3d');
+      $('carImg').style.display = 'none';
+    });
+  })();
 
   // ---------------------------------------------------------------- media
   function fmt(ms) { ms = Math.max(0, ms | 0); var s = Math.floor(ms / 1000); return Math.floor(s / 60) + ':' + pad(s % 60); }
@@ -142,8 +174,9 @@
     $('playIcon').setAttribute('d', playing ? 'M7 5h4v14H7zM13 5h4v14h-4z' : 'M7 4v16l13-8z');
     $('playBtn').setAttribute('aria-label', playing ? 'Пауза' : 'Играть');
     if (!media.active) {
-      $('trackTitle').textContent = settings.lang === 'ru' ? 'Музыка не играет' : 'Musiqa o‘chiq';
-      $('trackArtist').textContent = settings.lang === 'ru' ? 'Нажмите ▶, чтобы открыть Яндекс Музыку' : '▶ bosing — Yandex Musiqa ochiladi';
+      var ru = settings.lang === 'ru';
+      $('trackTitle').textContent = playing ? (ru ? 'Музыка играет' : 'Musiqa yangrayapti') : (ru ? 'Музыка на паузе' : 'Musiqa to‘xtatilgan');
+      $('trackArtist').textContent = ru ? 'Яндекс Музыка' : 'Yandex Musiqa';
       $('cover').style.backgroundImage = ''; $('cover').classList.remove('has-art');
       $('progressBar').style.width = '0'; $('tPos').textContent = '0:00'; $('tDur').textContent = '0:00';
       return;
@@ -165,6 +198,10 @@
     $('progressBar').style.width = dur > 0 ? (pos / dur * 100).toFixed(2) + '%' : '0';
   }
   setInterval(progress, 1000);
+  setInterval(function () {
+    if (media.active) return;
+    try { var m = JSON.parse(A.mediaState()); if (!m.active && m.playing !== media.playing) { media = m; renderMedia(); } } catch (e) {}
+  }, 2000);
   document.querySelectorAll('[data-media]').forEach(function (b) {
     b.addEventListener('click', function () { A.media(b.getAttribute('data-media')); });
   });
@@ -198,6 +235,28 @@
   });
   $('openNavi').addEventListener('click', openNavi);
   $('openNavi2').addEventListener('click', openNavi);
+
+  // ---------------------------------------------------------------- embedded Yandex map
+  var here = null, mapShown = null, mapFollow = true;
+  function mapUrl(lat, lon, zoom) {
+    var ll = lon.toFixed(6) + ',' + lat.toFixed(6);
+    return 'https://yandex.ru/map-widget/v1/?ll=' + ll + '&z=' + zoom + '&l=map,trf&pt=' + ll + ',pm2gnm&lang=' + (L() === 'ru' ? 'ru_RU' : 'uz_UZ');
+  }
+  function distM(a, b) {
+    var R = 6371000, toR = Math.PI / 180;
+    var dLat = (b.lat - a.lat) * toR, dLon = (b.lon - a.lon) * toR;
+    var x = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(a.lat * toR) * Math.cos(b.lat * toR) * Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return 2 * R * Math.atan2(Math.sqrt(x), Math.sqrt(1 - x));
+  }
+  function showMap(force) {
+    var p = here || { lat: 41.2995, lon: 69.2401 };   // Tashkent until GPS answers
+    if (!force && mapShown && distM(mapShown, p) < 400) return;
+    mapShown = { lat: p.lat, lon: p.lon };
+    $('mapFrame').src = mapUrl(p.lat, p.lon, here ? 15 : 12);
+  }
+  $('mapFrame').addEventListener('load', function () { $('mapOffline').hidden = true; });
+  $('mapCenter').addEventListener('click', function () { showMap(true); });
+  setTimeout(function () { showMap(true); }, 600);
 
   // ---------------------------------------------------------------- volume
   var volTimer;
@@ -344,7 +403,9 @@
     var lk = settings.lastKey, wk = settings.wheelKey;
     $('keyInfo').textContent = (wk > 0 ? 'Назначена кнопка с кодом ' + wk + '. ' : '') +
       (lk > 0 ? 'Последняя нажатая: ' + lk : 'Включите «Спецвозможности» в разрешениях и нажмите кнопку на руле');
-    $('version').textContent = 'Версия ' + (settings.version || '') + (settings.tts ? '' : ' · синтез речи не найден');
+    var chrome = (navigator.userAgent.match(/Chrome\/(\d+)/) || [])[1] || '?';
+    $('version').textContent = 'Версия ' + (settings.version || '') + ' · голос: ' + (settings.ttsEngine || '—') +
+      ' · WebView ' + chrome + ' · 3D: ' + (has3d ? 'да' : 'нет') + (errors.length ? ' · ошибки: ' + errors.join(' | ') : '');
   }
   $('toggles').addEventListener('click', function (e) {
     var b = e.target.closest('[data-tg]'); if (!b) return;
@@ -453,6 +514,10 @@
         break;
       case 'listen':
         if ($('onboard').hidden) openVoice();
+        break;
+      case 'location':
+        here = { lat: data.lat, lon: data.lon };
+        showMap(false);
         break;
       case 'resumed':
         if (!voiceOpen) armWake(800);

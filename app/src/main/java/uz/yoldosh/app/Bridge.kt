@@ -33,8 +33,47 @@ class Bridge(private val act: MainActivity) {
 
     // ---- lifecycle -------------------------------------------------------------------------
 
+    private var locListening = false
+    private val locListener = object : android.location.LocationListener {
+        override fun onLocationChanged(l: Location) = emitLocation(l)
+        @Deprecated("Deprecated in Java")
+        override fun onStatusChanged(provider: String?, status: Int, extras: android.os.Bundle?) {}
+        override fun onProviderEnabled(provider: String) {}
+        override fun onProviderDisabled(provider: String) {}
+    }
+
+    private fun emitLocation(l: Location) {
+        act.emit("location", JSONObject().put("lat", l.latitude).put("lon", l.longitude)
+            .put("speed", if (l.hasSpeed()) l.speed * 3.6 else 0.0).put("bearing", if (l.hasBearing()) l.bearing.toDouble() else 0.0))
+    }
+
+    private fun startLocation() {
+        if (locListening) return
+        val fine = ctx.checkSelfPermission(android.Manifest.permission.ACCESS_FINE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        val coarse = ctx.checkSelfPermission(android.Manifest.permission.ACCESS_COARSE_LOCATION) == PackageManager.PERMISSION_GRANTED
+        if (!fine && !coarse) return
+        val lm = ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager
+        try {
+            var best: Location? = null
+            for (p in lm.getProviders(true)) {
+                val l = try { lm.getLastKnownLocation(p) } catch (_: SecurityException) { null } ?: continue
+                if (best == null || l.time > best.time) best = l
+                try { lm.requestLocationUpdates(p, 5000L, 25f, locListener, android.os.Looper.getMainLooper()) } catch (_: Exception) {}
+            }
+            best?.let { emitLocation(it) }
+            locListening = true
+        } catch (_: SecurityException) {}
+    }
+
+    private fun stopLocation() {
+        if (!locListening) return
+        try { (ctx.getSystemService(Context.LOCATION_SERVICE) as LocationManager).removeUpdates(locListener) } catch (_: Exception) {}
+        locListening = false
+    }
+
     fun onResume() {
         MediaHub.attach()
+        act.runOnUiThread { startLocation() }
         if (pageReady) {
             pushPerms()
             act.emit("resumed", true)
@@ -42,6 +81,7 @@ class Bridge(private val act: MainActivity) {
     }
 
     fun onStop() {
+        stopLocation()
         voice.stopWake()
         voice.stop()
     }
@@ -50,7 +90,10 @@ class Bridge(private val act: MainActivity) {
         if (pageReady) act.emit("listen", true) else pendingListen = true
     }
 
-    fun pushPerms() = act.emit("perms", Perms.status(ctx))
+    fun pushPerms() {
+        act.emit("perms", Perms.status(ctx))
+        act.runOnUiThread { startLocation() }
+    }
 
     fun release() {
         voice.release()
@@ -65,6 +108,7 @@ class Bridge(private val act: MainActivity) {
         pageReady = true
         pushPerms()
         MediaHub.push()
+        act.runOnUiThread { startLocation() }
         if (Perms.status(ctx).optBoolean("mic")) {
             act.runOnUiThread { voice.preload(Prefs.str(ctx, "lang", "uz")) }
         }
@@ -87,6 +131,7 @@ class Bridge(private val act: MainActivity) {
         .put("lastKey", Prefs.int(ctx, "lastKey", -1))
         .put("wheelKey", Prefs.int(ctx, "wheelKey", -1))
         .put("tts", speaker.ready)
+        .put("ttsEngine", speaker.engine)
         .put("version", appVersion())
         .toString()
 

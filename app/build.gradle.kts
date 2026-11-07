@@ -48,7 +48,7 @@ android {
     }
 
     androidResources {
-        noCompress += listOf("glb")
+        noCompress += listOf("glb", "onnx")
     }
 
     packaging {
@@ -62,4 +62,6 @@ dependencies {
     implementation("androidx.webkit:webkit:1.12.1")
     implementation("com.alphacephei:vosk-android:0.3.47@aar")
     implementation("net.java.dev.jna:jna:5.13.0@aar")
+    // Offline speech synthesis; the AAR is downloaded by the CI build (see .github/workflows/build.yml)
+    implementation(files("libs/sherpa-onnx.aar"))
 }

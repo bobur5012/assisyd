@@ -509,6 +509,15 @@
     var ok = A.copyDiagnostics && A.copyDiagnostics();
     toast(ok ? 'Скопировано — вставьте в чат разработчику' : 'Не удалось скопировать');
   });
+  $('diagTest').addEventListener('click', function () {
+    var res;
+    try { res = A.carTest ? JSON.parse(A.carTest(22)) : { ok: false, detail: 'нет моста' }; }
+    catch (e) { res = { ok: false, detail: String(e) }; }
+    lastCar = 'test temp 22 -> ' + (res.ok ? 'ok' : 'fail') + ': ' + (res.detail || '');
+    toast(res.ok ? 'Климат выставлен на 22° ✓' : 'Не сработало: ' + (res.detail || '').slice(0, 80));
+    var out = $('carOut');
+    if (!out.hidden) { try { out.textContent = A.diagnostics(); } catch (e) {} }
+  });
 
   // ---------------------------------------------------------------- onboarding / permissions
   var PERMS = [

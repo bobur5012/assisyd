@@ -407,23 +407,11 @@ class Bridge(private val act: MainActivity) {
         return o.toString()
     }
 
+    /** Runs a live climate test: tries to set the cabin to the given °C and reports the exact result. */
     @JavascriptInterface
-    fun copyText(text: String) = act.runOnUiThread {
-        try {
-            val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-            cm.setPrimaryClip(android.content.ClipData.newPlainText("Yo'ldosh", text))
-            Toast.makeText(ctx, "Скопировано", Toast.LENGTH_SHORT).show()
-        } catch (_: Exception) {}
-    }
-
-    @JavascriptInterface
-    fun shareText(text: String) = act.runOnUiThread {
-        try {
-            val i = Intent(Intent.ACTION_SEND).setType("text/plain").putExtra(Intent.EXTRA_TEXT, text)
-            act.startActivity(Intent.createChooser(i, "Отправить отчёт").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-        } catch (_: Exception) {
-            Toast.makeText(ctx, "Нет приложения для отправки", Toast.LENGTH_SHORT).show()
-        }
+    fun carTest(celsius: Int): String {
+        val r = CarControl.setTemperature(ctx, celsius)
+        return JSONObject().put("ok", r.ok).put("detail", r.detail).toString()
     }
 
     @JavascriptInterface

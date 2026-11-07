@@ -407,15 +407,6 @@ class Bridge(private val act: MainActivity) {
         return o.toString()
     }
 
-    /** Uploads the diagnostic report to a paste service and returns the URL via the "report" event. */
-    @JavascriptInterface
-    fun uploadReport(text: String) {
-        Thread {
-            val url = Net.paste(text)
-            act.emit("report", JSONObject().put("ok", url != null).put("url", url ?: ""))
-        }.start()
-    }
-
     @JavascriptInterface
     fun copyText(text: String) = act.runOnUiThread {
         try {

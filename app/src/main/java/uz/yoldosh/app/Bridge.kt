@@ -1,5 +1,7 @@
 package uz.yoldosh.app
 
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -7,6 +9,7 @@ import android.location.Location
 import android.location.LocationManager
 import android.media.AudioManager
 import android.net.Uri
+import android.os.Build
 import android.webkit.JavascriptInterface
 import android.widget.Toast
 import org.json.JSONArray
@@ -335,6 +338,57 @@ class Bridge(private val act: MainActivity) {
     @JavascriptInterface
     fun carProbe(): String = try { CarControl.probe(ctx).toString() } catch (t: Throwable) {
         JSONObject().put("error", t.message ?: "probe failed").toString()
+    }
+
+    /** Full diagnostics: vehicle API + permissions + device + installed BYD apps. Read-only. */
+    private fun buildDiagnostics(): String {
+        val o = try { CarControl.probe(ctx) } catch (t: Throwable) { JSONObject().put("probeError", t.message) }
+        o.put("perms", Perms.status(ctx))
+        o.put("device", JSONObject()
+            .put("model", Build.MODEL).put("brand", Build.BRAND).put("manufacturer", Build.MANUFACTURER)
+            .put("device", Build.DEVICE).put("product", Build.PRODUCT).put("hardware", Build.HARDWARE)
+            .put("android", Build.VERSION.RELEASE).put("sdk", Build.VERSION.SDK_INT)
+            .put("display", Build.DISPLAY).put("app", appVersion()))
+        o.put("bydPackages", bydPackages())
+        o.put("speech", speaker.engine)
+        return o.toString(2)
+    }
+
+    private fun bydPackages(): JSONArray {
+        val arr = JSONArray()
+        try {
+            for (pi in ctx.packageManager.getInstalledPackages(0)) {
+                val p = pi.packageName
+                if (p.startsWith("com.byd") || p.contains("dilink") || p.contains("autovoice") || p.contains("mecanum")) {
+                    arr.put(p + " " + (pi.versionName ?: ""))
+                }
+            }
+        } catch (_: Throwable) {}
+        return arr
+    }
+
+    @JavascriptInterface
+    fun diagnostics(): String = try { buildDiagnostics() } catch (t: Throwable) { "{\"error\":\"${t.message}\"}" }
+
+    /** Copies the full diagnostics to the clipboard. */
+    @JavascriptInterface
+    fun copyDiagnostics(): Boolean = try {
+        val cm = ctx.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+        cm.setPrimaryClip(ClipData.newPlainText("Yo'ldosh diagnostics", buildDiagnostics()))
+        true
+    } catch (_: Throwable) { false }
+
+    /** Opens the Android share sheet (Telegram, notes, etc.) — the user chooses where it goes. */
+    @JavascriptInterface
+    fun shareDiagnostics() = act.runOnUiThread {
+        try {
+            val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+                .putExtra(Intent.EXTRA_SUBJECT, "Yo'ldosh диагностика")
+                .putExtra(Intent.EXTRA_TEXT, buildDiagnostics())
+            act.startActivity(Intent.createChooser(send, "Отправить диагностику").addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        } catch (_: Throwable) {
+            Toast.makeText(ctx, "На магнитоле нет приложения, чтобы отправить. Используйте «Копировать».", Toast.LENGTH_LONG).show()
+        }
     }
 
     /** Device + firmware facts for the diagnostic report. */

@@ -178,14 +178,10 @@
           </div>
           <div class="field">
             <div class="muted">Управление машиной (климат, окна)</div>
-            <button class="primary" id="carSend">📤 Отправить диагностику разработчику</button>
-            <div id="reportBox" class="report" hidden>
-              <div class="muted small">Ссылка с отчётом — пришлите её разработчику:</div>
-              <div class="report-url" id="reportUrl"></div>
-              <div class="seg">
-                <button id="reportCopy">Скопировать ссылку</button>
-                <button id="reportShare">Отправить в Telegram</button>
-              </div>
+            <div class="small" id="carHint">Соберите данные о машине и пришлите разработчику — по ним подключаются команды климата и окон.</div>
+            <div class="seg">
+              <button class="primary" id="diagShare">📤 Отправить разработчику</button>
+              <button class="wide-btn slim" id="diagCopy">Копировать</button>
             </div>
             <button class="wide-btn slim" id="carDiag">Показать технические данные</button>
             <pre id="carOut" class="diag" hidden></pre>

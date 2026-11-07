@@ -496,24 +496,18 @@
   $('carDiag').addEventListener('click', function () {
     var out = $('carOut');
     out.hidden = !out.hidden;
-    if (!out.hidden) out.textContent = buildReport();
+    if (!out.hidden) {
+      out.textContent = 'Собираю данные…';
+      setTimeout(function () { try { out.textContent = A.diagnostics(); } catch (e) { out.textContent = buildReport(); } }, 50);
+    }
   });
-  $('carSend').addEventListener('click', function () {
-    $('carSend').textContent = 'Отправляю…';
-    $('carSend').disabled = true;
-    var text = buildReport();
-    window._report = text;
-    if (A.uploadReport) A.uploadReport(text);
-    else onNative('report', { ok: false, url: '' });
+  $('diagShare').addEventListener('click', function () {
+    if (A.shareDiagnostics) A.shareDiagnostics();
+    else toast('Отправка недоступна');
   });
-  function reportPayload() {
-    var u = $('reportUrl').textContent || '';
-    return u.indexOf('http') === 0 ? u : (window._report || '');
-  }
-  $('reportCopy').addEventListener('click', function () { if (A.copyText) A.copyText(reportPayload()); });
-  $('reportShare').addEventListener('click', function () {
-    var p = reportPayload();
-    if (A.shareText) A.shareText(p.indexOf('http') === 0 ? 'Диагностика Yo‘ldosh: ' + p : p);
+  $('diagCopy').addEventListener('click', function () {
+    var ok = A.copyDiagnostics && A.copyDiagnostics();
+    toast(ok ? 'Скопировано — вставьте в чат разработчику' : 'Не удалось скопировать');
   });
 
   // ---------------------------------------------------------------- onboarding / permissions
@@ -584,18 +578,6 @@
       case 'location':
         here = { lat: data.lat, lon: data.lon };
         showMap(false);
-        break;
-      case 'report':
-        $('carSend').textContent = '📤 Отправить диагностику разработчику';
-        $('carSend').disabled = false;
-        $('reportBox').hidden = false;
-        if (data.ok && data.url) {
-          $('reportUrl').textContent = data.url;
-          $('reportShare').textContent = 'Отправить в Telegram';
-        } else {
-          $('reportUrl').textContent = 'Нет интернета для отправки — нажмите «Поделиться» и отправьте текст';
-          $('reportShare').textContent = 'Поделиться отчётом';
-        }
         break;
       case 'resumed':
         if (!voiceOpen) armWake(800);

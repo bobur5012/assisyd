@@ -32,6 +32,8 @@ class Bridge(private val act: MainActivity) {
         MediaHub.listener = { act.emit("media", it) }
         MediaHub.init(ctx)
         voice.onWake = { act.emit("listen", true) }
+        // Connect to the car's climate device on the main thread (binder services need a Looper).
+        CarControl.init(ctx)
     }
 
     // ---- lifecycle -------------------------------------------------------------------------
